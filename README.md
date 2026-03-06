@@ -22,7 +22,7 @@ El servidor funciona como una bóveda blindada para la gestión de activos cript
 * **Hardening de Bóveda:** La base de datos de llaves utiliza cifrado **AES-256-GCM** con derivación **PBKDF2** (480,000 iteraciones).
 * **Seguridad Física:** El comando `--del` activa un algoritmo de **trituración de datos** (data shredding) que sobrescribe los archivos con basura aleatoria y utiliza `os.fsync()` para asegurar el vaciado del búfer de hardware.
 
-### 3. Motor de Cifrado del Objetivo (`BitLock-payload.py`)
+### 3. Motor de Cifrado del Objetivo (`BitLock-client.py`)
 El módulo inyectado ejecuta el cifrado de archivos con estándares militares:
 * **Handshake Híbrido:** Implementa **ECDHE (Curva P-384)** para lograr *Perfect Forward Secrecy* (PFS). Posee un fallback automático a **RSA-4096** si las librerías de curvas elípticas no están presentes.
 * **Cifrado Autenticado:** Utiliza AES-GCM para garantizar que los archivos no puedan ser alterados ni recuperados sin la firma de integridad original.
