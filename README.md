@@ -1,40 +1,70 @@
-# BitLock: Investigación sobre Criptografía y Persistencia en Memoria (PoC)
+# 🛡️ BitLock Framework: Ecosistema de Criptovirología y C2 (PoC)
 
-### ⚠️ Únicamente para fines educativos
-**Aviso Legal:** Este proyecto ha sido desarrollado con fines de investigación académica y pruebas de seguridad autorizadas. El autor no se hace responsable del mal uso de este software. Utilícelo solo en entornos controlados y aislados (Sandboxes).
+![License](https://img.shields.io/badge/License-MIT-green.svg) ![Python](https://img.shields.io/badge/Python-3.8%2B-blue.svg) ![Security](https://img.shields.io/badge/Focus-Research_&_RedTeaming-red.svg)
 
----
-
-## 🔬 Resumen del Proyecto
-Este framework es una Prueba de Concepto (PoC) que demuestra una arquitectura de comando y control (C2) modular. El enfoque principal es el estudio de criptografía avanzada y técnicas de ejecución "fileless" (sin archivos) para comprender cómo las amenazas modernas evaden la detección basada en firmas.
-
-### Componentes Clave:
-* **Servidor C2 Seguro:** Un backend en Python que gestiona una bóveda de llaves cifrada y registros (logs) protegidos mediante **AES-256-GCM**.
-* **Loader de Memoria:** Un inyector especializado que descarga, descifra y ejecuta payloads directamente en la RAM, sin dejar rastros en el disco físico.
-* **Motor Criptográfico:** Implementación del estándar de cifrado autenticado **AES-256-GCM** con intercambio de llaves híbrido.
+Este repositorio contiene una **Prueba de Concepto (PoC)** integral diseñada para el estudio de arquitecturas de amenazas modernas. El proyecto simula un entorno de ataque *fileless* (sin archivos) con una infraestructura de comando y control (C2) protegida por criptografía de curva elíptica y protocolos de borrado seguro.
 
 ---
 
-## 🛠️ Detalles Técnicos
+## 🔬 Análisis del Ciclo de Vida del Ataque
 
-### 1. Intercambio de Llaves Híbrido (ECDHE + RSA)
-El framework implementa un modelo de **Seguridad Proyectada (PFS)**:
-* **ECDHE (Curva P-384):** Utilizado para la derivación de llaves de sesión, garantizando que incluso si la llave maestra se ve comprometida, las sesiones anteriores permanezcan seguras.
-* **HKDF:** Función de derivación de llaves utilizada para transformar el secreto compartido en una llave simétrica de 256 bits.
+El sistema opera mediante una ejecución coordinada de tres módulos principales, diseñados para evadir defensas tradicionales y garantizar la persistencia de las llaves en el servidor.
 
-### 2. Flujo de Ejecución en Memoria
-El cargador (`load.py`) utiliza un enfoque de "Etapa-0":
-1. Genera una llave AES efímera.
-2. Descarga el payload cifrado desde el servidor C2.
-3. Descifra y compila el payload a *bytecode* de Python directamente en la RAM.
-4. Utiliza `exec()` para iniciar la ejecución sin escribir nunca el archivo `.py` en el almacenamiento local.
+### 1. Infiltración Volátil (`load.py`)
+El ataque inicia con un **Stager de Etapa 0**. Su función principal es la evasión de EDR (Endpoint Detection and Response):
+* **Handshake Efímero:** Genera una clave AES-256 única en RAM y la transmite al puerto `5001`.
+* **Cifrado de Carga Útil:** El servidor cifra el ransomware en tiempo real antes del envío, frustrando la inspección de paquetes por firmas estáticas.
+* **Ejecución In-Memory:** El payload se descifra y compila a *bytecode* directamente en la memoria volátil.
+* **Anti-Forense:** Implementa un `secure_wipe` para destruir la clave y el código fuente en texto plano antes de invocar `exec()`.
 
-### 3. Capacidades Anti-Forense
-El servidor incluye un módulo avanzado `--del` que realiza un **borrado seguro de 7 pasadas** (shredding) de los logs y bases de datos sensibles, utilizando `os.fsync` y `secrets.token_bytes` para sobrescribir los sectores físicos del disco.
+### 2. Establecimiento de Canal C2 (`BitLockC2Server.py`)
+El servidor funciona como una bóveda blindada para la gestión de activos criptográficos:
+* **Hardening de Bóveda:** La base de datos de llaves utiliza cifrado **AES-256-GCM** con derivación **PBKDF2** (480,000 iteraciones).
+* **Seguridad Física:** El comando `--del` activa un algoritmo de **trituración de datos** (data shredding) que sobrescribe los archivos con basura aleatoria y utiliza `os.fsync()` para asegurar el vaciado del búfer de hardware.
+
+### 3. Motor de Cifrado del Objetivo (`BitLock-payload.py`)
+El módulo inyectado ejecuta el cifrado de archivos con estándares militares:
+* **Handshake Híbrido:** Implementa **ECDHE (Curva P-384)** para lograr *Perfect Forward Secrecy* (PFS). Posee un fallback automático a **RSA-4096** si las librerías de curvas elípticas no están presentes.
+* **Cifrado Autenticado:** Utiliza AES-GCM para garantizar que los archivos no puedan ser alterados ni recuperados sin la firma de integridad original.
+* **Evasión Inteligente:** Omite directorios críticos del sistema (`Windows`, `/bin/`, `/etc/`) para evitar el colapso del sistema operativo y asegurar la visibilidad del reporte de resultados.
 
 ---
 
-## 🚀 Instalación (Entorno de Laboratorio)
-1. **Iniciar Servidor C2:**
-   ```bash
-   python3 BitLockC2Server.py
+## 📊 Diagrama de Flujo (Data Pipeline)
+
+```mermaid
+graph TD
+    A[Cliente: Ejecuta load.py] -->|1. Envía Clave Efímera| B(Servidor C2: Puerto 5001)
+    B -->|2. Envía Payload Cifrado| A
+    A -->|3. Descifra y Ejecuta en RAM| C[BitLock-Payload]
+    C -->|4. Intercambio ECDHE| D(Servidor C2: Puerto 5000)
+    D -->|5. Almacena Llave en Bóveda| E[(DB Cifrada PBKDF2)]
+    C -->|6. Cifrado AES-GCM| F[Archivos .locked]
+    C -->|7. Auto-destrucción| G[Proceso Finalizado]
+```
+
+---
+
+## ⚙️ Especificaciones Técnicas de Seguridad
+
+| Módulo | Tecnología | Propósito Forense |
+| --- | --- | --- |
+| **Intercambio** | ECDHE (P-384) | Evitar recuperación de llaves vía sniffing de red. |
+| **Derivación** | HKDF (SHA-256) | Generar llaves simétricas a partir de secretos compartidos. |
+| **Cifrado** | AES-256-GCM | Garantizar confidencialidad e integridad de los datos. |
+| **Protección DB** | PBKDF2 (480k iter.) | Máxima resistencia contra ataques de fuerza bruta offline. |
+| **Borrado** | 7-Pass Overwrite | Neutralizar herramientas de recuperación forense (FTK/EnCase). |
+
+---
+
+## ⚠️ Descargo de Responsabilidad (Ethical Hacking)
+
+**Este proyecto es estrictamente para fines educativos y de investigación.**
+
+1. El uso de esta herramienta en sistemas sin autorización previa es **ilegal** y constituye un delito informático.
+2. El autor **no se hace responsable** por daños a la infraestructura del usuario o de terceros.
+3. Si el usuario bloquea su propio sistema debido a un error de configuración, asume total responsabilidad técnica y económica de la recuperación de sus datos.
+
+---
+
+**Desarrollado para la investigación de seguridad ofensiva y defensa de infraestructuras críticas.**
